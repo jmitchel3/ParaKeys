@@ -103,6 +103,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: AgentCmd,
     },
+
+    /// Create encrypted grants for agents
+    Grant {
+        #[command(subcommand)]
+        action: GrantCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -123,6 +129,28 @@ pub enum ManifestCmd {
 pub enum AgentCmd {
     /// Generate agent recipient keypair under `.parakeys-agent/`
     Keygen {
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum GrantCmd {
+    /// Encrypt allowlisted vault keys to an agent public key
+    Create {
+        /// Path to agent.pub (recipient key)
+        #[arg(long = "to")]
+        to: PathBuf,
+
+        /// Comma-separated key names to include
+        #[arg(long = "keys")]
+        keys: String,
+
+        /// Output grant file path
+        #[arg(long = "out", default_value = "grant.enc")]
+        out: PathBuf,
+
         /// Project directory (default: current directory)
         #[arg(long)]
         path: Option<PathBuf>,
