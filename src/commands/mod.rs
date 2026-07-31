@@ -33,6 +33,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         },
         Commands::Agent { action } => match action {
             AgentCmd::Keygen { path } => agent_cmd::keygen(path),
+            AgentCmd::Apply { grant, path } => agent_cmd::apply(grant, path),
         },
         Commands::Grant { action } => match action {
             GrantCmd::Create { to, keys, out, path } => grant_cmd::create(to, keys, out, path),
