@@ -1,0 +1,86 @@
+//! Clap command definitions for the ParaKeys binary.
+
+use std::path::PathBuf;
+
+use clap::{Parser, Subcommand};
+
+/// Like Apple Passwords, but for dotenv.
+#[derive(Debug, Parser)]
+#[command(name = "parakeys", version, about, long_about = None)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Commands {
+    /// Create a new vault and recovery code in the current project
+    Init {
+        /// Project directory (default: current directory)
+        #[arg(long, global = true)]
+        path: Option<PathBuf>,
+    },
+
+    /// Import a plaintext .env into the vault and rewrite placeholders
+    Import {
+        /// Path to the .env file to import
+        #[arg(default_value = ".env")]
+        env_file: PathBuf,
+
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// Set a key in the vault
+    Set {
+        /// KEY=value or KEY followed by --value
+        key: String,
+
+        /// Value when not using KEY=value form
+        #[arg(long)]
+        value: Option<String>,
+
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// Remove a key from the vault
+    Unset {
+        key: String,
+
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// List key names and set/missing status (values hidden by default)
+    List {
+        /// Print secret values (use with care)
+        #[arg(long)]
+        reveal: bool,
+
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// Run a command with vault secrets injected into the process environment
+    Run {
+        /// Command and arguments after `--`
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        command: Vec<String>,
+
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// Check vault, key wallet, and .env hygiene
+    Doctor {
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+}

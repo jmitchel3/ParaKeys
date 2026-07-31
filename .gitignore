@@ -10,3 +10,11 @@ dist/
 # Local Kanbanlan coordination state
 /.cache/kanbanlan/
 /.worktrees/
+
+
+# Added by cargo
+
+/target
+
+# Rust
+/target/
