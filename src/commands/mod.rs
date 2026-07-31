@@ -2,6 +2,7 @@
 
 mod agent_cmd;
 mod doctor;
+mod grant_cmd;
 mod import;
 mod init;
 mod list;
@@ -12,7 +13,7 @@ mod unset;
 
 use anyhow::Result;
 
-use crate::cli::{AgentCmd, Cli, Commands, ManifestCmd};
+use crate::cli::{AgentCmd, Cli, Commands, GrantCmd, ManifestCmd};
 
 pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
@@ -32,6 +33,9 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         },
         Commands::Agent { action } => match action {
             AgentCmd::Keygen { path } => agent_cmd::keygen(path),
+        },
+        Commands::Grant { action } => match action {
+            GrantCmd::Create { to, keys, out, path } => grant_cmd::create(to, keys, out, path),
         },
     }
 }
