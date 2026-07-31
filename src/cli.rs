@@ -97,6 +97,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: ManifestCmd,
     },
+
+    /// Agent recipient tooling (grants / keygen)
+    Agent {
+        #[command(subcommand)]
+        action: AgentCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -110,5 +116,15 @@ pub enum ManifestCmd {
         /// Env file path relative to project (default: .env)
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AgentCmd {
+    /// Generate agent recipient keypair under `.parakeys-agent/`
+    Keygen {
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
     },
 }
