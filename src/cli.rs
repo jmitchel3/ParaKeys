@@ -142,6 +142,16 @@ pub enum AgentCmd {
         #[arg(long)]
         path: Option<PathBuf>,
     },
+    /// Run a command with only grant allowlisted secrets injected
+    Run {
+        /// Command and args after `--`
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        command: Vec<String>,
+
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
