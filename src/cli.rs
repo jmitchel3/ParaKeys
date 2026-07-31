@@ -133,6 +133,15 @@ pub enum AgentCmd {
         #[arg(long)]
         path: Option<PathBuf>,
     },
+    /// Store a grant file for local agent use (no human vault key required)
+    Apply {
+        /// Path to grant.enc
+        grant: PathBuf,
+
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
