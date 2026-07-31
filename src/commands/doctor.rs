@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
+use crate::config::{config_path, load_config};
 use crate::envfile::{is_placeholder, load_env_file};
 use crate::keywallet::{has_local_key, local_key_path, project_root};
 use crate::vault::default_vault_path;
@@ -54,6 +55,23 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
             "error: local key missing (run `parakeys init` or `parakeys init --recover`)"
         );
         issues += 1;
+    }
+
+    match load_config(&root) {
+        Ok(cfg) => {
+            println!(
+                "ok: config.toml env_name={} ({})",
+                cfg.env_name,
+                config_path(&root).display()
+            );
+            oks += 1;
+        }
+        Err(_) => {
+            println!(
+                "warn: no config.toml at {} (optional; re-run init to create)",
+                config_path(&root).display()
+            );
+        }
     }
 
     let env_path = root.join(".env");

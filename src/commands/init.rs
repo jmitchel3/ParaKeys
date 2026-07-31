@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 
+use crate::config::{save_config, ProjectConfig};
 use crate::keywallet::{
     decode_recovery_code, encode_recovery_code, has_local_key, project_root, store_local_key,
 };
@@ -34,9 +35,23 @@ pub fn run(path: Option<PathBuf>, recover: Option<String>, force: bool) -> Resul
     let data = VaultData::new();
     save_vault(&root, &data, &key).context("write empty vault")?;
     store_local_key(&root, &key).context("store local key")?;
+    let env_name = root
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("default")
+        .to_string();
+    let cfg = ProjectConfig {
+        format_version: 0,
+        env_name: env_name.clone(),
+    };
+    let cfg_path = save_config(&root, &cfg).context("write config.toml")?;
     let code = encode_recovery_code(&key);
 
     println!("Created ParaKeys vault at {}", vault_path.display());
+    println!(
+        "Project config (non-secret) at {} (env_name={env_name})",
+        cfg_path.display()
+    );
     println!("Local key stored at {}", crate::keywallet::local_key_path(&root).display());
     println!();
     println!("RECOVERY CODE (store offline; shown once):");
