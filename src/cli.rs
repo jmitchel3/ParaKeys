@@ -91,4 +91,24 @@ pub enum Commands {
         #[arg(long)]
         path: Option<PathBuf>,
     },
+
+    /// Manage the placeholder `.env` manifest
+    Manifest {
+        #[command(subcommand)]
+        action: ManifestCmd,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ManifestCmd {
+    /// Rewrite/create `.env` from vault key names (placeholders only)
+    Sync {
+        /// Project directory (default: current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+
+        /// Env file path relative to project (default: .env)
+        #[arg(long, default_value = ".env")]
+        env_file: PathBuf,
+    },
 }

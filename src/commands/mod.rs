@@ -4,13 +4,14 @@ mod doctor;
 mod import;
 mod init;
 mod list;
+mod manifest;
 mod run;
 mod set;
 mod unset;
 
 use anyhow::Result;
 
-use crate::cli::{Cli, Commands};
+use crate::cli::{Cli, Commands, ManifestCmd};
 
 pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
@@ -25,5 +26,8 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         Commands::List { reveal, path } => list::run(reveal, path),
         Commands::Run { command, path } => run::run(command, path),
         Commands::Doctor { path } => doctor::run(path),
+        Commands::Manifest { action } => match action {
+            ManifestCmd::Sync { path, env_file } => manifest::sync(path, env_file),
+        },
     }
 }
