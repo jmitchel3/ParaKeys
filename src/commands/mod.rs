@@ -14,7 +14,11 @@ use crate::cli::{Cli, Commands};
 
 pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
-        Commands::Init { path } => init::run(path),
+        Commands::Init {
+            path,
+            recover,
+            force,
+        } => init::run(path, recover, force),
         Commands::Import { env_file, path } => import::run(env_file, path),
         Commands::Set { key, value, path } => set::run(key, value, path),
         Commands::Unset { key, path } => unset::run(key, path),

@@ -6,6 +6,9 @@ dist/
 .env
 .env.local
 .parakeys-agent/
+.parakeys/local.key
+**/.parakeys/local.key
+
 
 # Local Kanbanlan coordination state
 /.cache/kanbanlan/

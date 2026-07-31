@@ -14,11 +14,19 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    /// Create a new vault and recovery code in the current project
+    /// Create a new vault and recovery code, or restore a local key from recovery
     Init {
         /// Project directory (default: current directory)
-        #[arg(long, global = true)]
+        #[arg(long)]
         path: Option<PathBuf>,
+
+        /// Restore the local key from a recovery code (does not create a new vault)
+        #[arg(long)]
+        recover: Option<String>,
+
+        /// Overwrite an existing vault and/or local key
+        #[arg(long)]
+        force: bool,
     },
 
     /// Import a plaintext .env into the vault and rewrite placeholders
