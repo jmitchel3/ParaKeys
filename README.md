@@ -37,3 +37,27 @@ Open the `docs/` folder as an Obsidian vault. Notes use `[[wikilinks]]`.
 ## License
 
 TBD.
+
+## Git transport layout
+
+Commit ciphertext and placeholders; never commit unlock keys.
+
+```text
+project/
+  .env                      # placeholders: KEY=<set in parakeys> (safe to commit)
+  .parakeys/
+    vault.enc               # encrypted vault (safe to commit)
+    config.toml             # optional non-secret metadata (safe to commit)
+    local.key               # NEVER commit (mode 0600; gitignored)
+  .parakeys-agent/          # agent-only material (gitignored)
+```
+
+Suggested project `.gitignore` snippet:
+
+```gitignore
+.parakeys/local.key
+**/.parakeys/local.key
+.parakeys-agent/
+```
+
+Multi-device: `git pull` gets `vault.enc` + `.env`; restore unlock with `parakeys init --recover '<code>'`.
