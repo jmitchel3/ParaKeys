@@ -6,16 +6,23 @@ Encrypted project environments, multi-device sync without a required backend, an
 
 ## Status
 
-MVP in progress. CLI skeleton builds; vault/import/run land on subsequent cards.
+MVP vertical slice works: `init` → `import` → `run`. Remaining: set/unset/list/doctor polish.
 
-## CLI (scaffold)
+## Quick start
 
 ```sh
-cargo build
-cargo run -- --help
+cargo build --release
+./target/release/parakeys init
+# save the recovery code offline
+
+# put real secrets in .env once, then:
+./target/release/parakeys import .env
+# .env now has <set in parakeys> placeholders
+
+./target/release/parakeys run -- your-command
 ```
 
-Planned commands: `init`, `import`, `set`, `unset`, `list`, `run`, `doctor`.
+Second machine: pull repo, then `parakeys init --recover '<code>'`.
 
 ## Documentation
 
