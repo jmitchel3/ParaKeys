@@ -1,0 +1,17 @@
+[package]
+name = "parakeys"
+version = "0.1.0"
+edition = "2021"
+description = "Like Apple Passwords, but for dotenv"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jmitchel3/ParaKeys"
+readme = "README.md"
+
+[[bin]]
+name = "parakeys"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.4", features = ["derive"] }
+thiserror = "2.0.19"
