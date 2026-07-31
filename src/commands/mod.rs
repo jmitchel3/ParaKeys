@@ -1,5 +1,6 @@
 //! Command handlers. Implementations land in later MVP cards.
 
+mod agent_cmd;
 mod doctor;
 mod import;
 mod init;
@@ -11,7 +12,7 @@ mod unset;
 
 use anyhow::Result;
 
-use crate::cli::{Cli, Commands, ManifestCmd};
+use crate::cli::{AgentCmd, Cli, Commands, ManifestCmd};
 
 pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
@@ -28,6 +29,9 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         Commands::Doctor { path } => doctor::run(path),
         Commands::Manifest { action } => match action {
             ManifestCmd::Sync { path, env_file } => manifest::sync(path, env_file),
+        },
+        Commands::Agent { action } => match action {
+            AgentCmd::Keygen { path } => agent_cmd::keygen(path),
         },
     }
 }

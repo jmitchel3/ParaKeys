@@ -1,5 +1,6 @@
 //! ParaKeys CLI: like Apple Passwords, but for dotenv.
 
+mod agent;
 mod cli;
 mod commands;
 mod config;
