@@ -7,6 +7,7 @@ mod config;
 mod envfile;
 mod error;
 mod keywallet;
+mod status;
 mod vault;
 
 use anyhow::Result;
