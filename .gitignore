@@ -1,0 +1,8 @@
+.DS_Store
+target/
+dist/
+*.pem
+*.key
+.env
+.env.local
+.parakeys-agent/
