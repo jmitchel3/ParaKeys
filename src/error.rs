@@ -2,7 +2,6 @@
 
 use thiserror::Error;
 
-#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum ParaKeysError {
     #[error("not implemented: {0}")]
@@ -13,4 +12,7 @@ pub enum ParaKeysError {
 
     #[error("invalid vault: {0}")]
     InvalidVault(String),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }
