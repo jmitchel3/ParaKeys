@@ -88,3 +88,13 @@ Suggested project `.gitignore` snippet:
 ```
 
 Multi-device: `git pull` gets `vault.enc` + `.env`; restore unlock with `parakeys init --recover '<code>'` (stores to Keychain when available).
+
+## GUI design system
+
+The desktop UI lives under `src/bin/parakeys_gui/`:
+
+- `ds.rs` — tokens (space, radius, type, color), theme, shared controls
+- `app.rs` — layout and product behavior built only from the design system
+- `main.rs` — entry
+
+Edit tokens in `ds.rs` first; avoid one-off magic numbers in the layout.

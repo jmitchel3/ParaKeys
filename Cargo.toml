@@ -17,7 +17,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "parakeys-gui"
-path = "src/bin/parakeys_gui.rs"
+path = "src/bin/parakeys_gui/main.rs"
 required-features = ["gui"]
 
 [features]
