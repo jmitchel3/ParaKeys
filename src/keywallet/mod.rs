@@ -1,12 +1,11 @@
-//! Local key material storage (file wallet for v0; Keychain later).
+//! Human unlock key storage: macOS Keychain (primary) with file-wallet fallback.
 //!
-//! The vault key is 32 random bytes. The recovery code is a Crockford base32
-//! encoding of that key (shown once at init). The same bytes are stored in a
-//! local, gitignored key file for day-to-day unlock.
+//! The vault key is 32 random bytes. The recovery code is base32 of that key
+//! (shown once at init). Day-to-day unlock uses Keychain + user presence (Touch ID /
+//! passcode) on macOS when available; otherwise `.parakeys/local.key`.
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use data_encoding::BASE32_NOPAD;
@@ -14,11 +13,32 @@ use data_encoding::BASE32_NOPAD;
 use crate::error::ParaKeysError;
 use crate::vault::VaultKey;
 
+#[cfg(target_os = "macos")]
+mod keychain;
+
 /// Relative path of the local key file (must stay out of git).
 pub const LOCAL_KEY_REL: &str = ".parakeys/local.key";
 
 /// Recovery codes are Crockford-ish base32 without padding, grouped for reading.
 const RECOVERY_GROUP: usize = 4;
+
+/// Which backend holds the unlock key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WalletBackend {
+    /// macOS Keychain (may require Touch ID / user presence on load).
+    Keychain,
+    /// File at `.parakeys/local.key` (mode 0600).
+    File,
+}
+
+impl WalletBackend {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Keychain => "keychain",
+            Self::File => "file",
+        }
+    }
+}
 
 pub fn local_key_path(project_root: &Path) -> PathBuf {
     project_root.join(LOCAL_KEY_REL)
@@ -27,7 +47,6 @@ pub fn local_key_path(project_root: &Path) -> PathBuf {
 /// Encode a vault key as a recovery code string (`xxxx-xxxx-...`).
 pub fn encode_recovery_code(key: &VaultKey) -> String {
     let encoded = BASE32_NOPAD.encode(key.as_bytes());
-    // data-encoding BASE32 uses A-Z2-7; lowercase for display comfort.
     let lower = encoded.to_ascii_lowercase();
     lower
         .as_bytes()
@@ -50,6 +69,26 @@ pub fn decode_recovery_code(code: &str) -> Result<VaultKey, ParaKeysError> {
     VaultKey::try_from_slice(&bytes)
 }
 
+/// Force file wallet when set (tests / explicit override).
+pub fn force_file_wallet() -> bool {
+    matches!(
+        std::env::var("PARAKEYS_FORCE_FILE_WALLET").as_deref(),
+        Ok("1") | Ok("true") | Ok("yes")
+    )
+}
+
+/// Prefer Keychain on macOS unless forced to file.
+pub fn prefer_keychain() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        !force_file_wallet()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
 /// Write the vault key to the local key file with mode 0600.
 pub fn store_local_key(project_root: &Path, key: &VaultKey) -> Result<PathBuf, ParaKeysError> {
     let path = local_key_path(project_root);
@@ -57,17 +96,18 @@ pub fn store_local_key(project_root: &Path, key: &VaultKey) -> Result<PathBuf, P
         fs::create_dir_all(parent).map_err(ParaKeysError::Io)?;
     }
 
-    // Overwrite securely enough for v0: truncate and write raw bytes.
     let mut opts = fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);
     #[cfg(unix)]
-    opts.mode(0o600);
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
 
     let mut file = opts.open(&path).map_err(ParaKeysError::Io)?;
     file.write_all(key.as_bytes()).map_err(ParaKeysError::Io)?;
     file.sync_all().map_err(ParaKeysError::Io)?;
 
-    // Ensure permissions even if umask interfered on create.
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -79,8 +119,7 @@ pub fn store_local_key(project_root: &Path, key: &VaultKey) -> Result<PathBuf, P
     Ok(path)
 }
 
-/// Load the vault key from the local key file.
-#[allow(dead_code)] // used by import/run/list in later MVP cards
+/// Load the vault key from the local key file only.
 pub fn load_local_key(project_root: &Path) -> Result<VaultKey, ParaKeysError> {
     let path = local_key_path(project_root);
     let bytes = fs::read(&path).map_err(|e| {
@@ -101,8 +140,7 @@ pub fn has_local_key(project_root: &Path) -> bool {
     local_key_path(project_root).is_file()
 }
 
-/// Remove the local key file (for tests / explicit reset).
-#[allow(dead_code)]
+/// Remove the local key file.
 pub fn clear_local_key(project_root: &Path) -> Result<(), ParaKeysError> {
     let path = local_key_path(project_root);
     match fs::remove_file(&path) {
@@ -110,6 +148,81 @@ pub fn clear_local_key(project_root: &Path) -> Result<(), ParaKeysError> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(ParaKeysError::Io(e)),
     }
+}
+
+/// Store unlock key: Keychain first on macOS (when preferred), else file.
+/// Returns which backend was used.
+pub fn store_unlock_key(project_root: &Path, key: &VaultKey) -> Result<WalletBackend, ParaKeysError> {
+    if prefer_keychain() {
+        #[cfg(target_os = "macos")]
+        {
+            match keychain::store(project_root, key) {
+                Ok(()) => {
+                    // Prefer Keychain as primary: remove file copy if present so
+                    // day-to-day unlock goes through Keychain user presence.
+                    let _ = clear_local_key(project_root);
+                    return Ok(WalletBackend::Keychain);
+                }
+                Err(e) => {
+                    // Fall through to file.
+                    let _ = e;
+                }
+            }
+        }
+    }
+    store_local_key(project_root, key)?;
+    Ok(WalletBackend::File)
+}
+
+/// Load unlock key: try Keychain first (macOS), then file.
+pub fn load_unlock_key(project_root: &Path) -> Result<VaultKey, ParaKeysError> {
+    if prefer_keychain() {
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(key) = keychain::load(project_root) {
+                return Ok(key);
+            }
+        }
+    }
+    load_local_key(project_root)
+}
+
+/// True if either Keychain or file wallet has a key for this project.
+pub fn has_unlock_key(project_root: &Path) -> bool {
+    if prefer_keychain() {
+        #[cfg(target_os = "macos")]
+        {
+            if keychain::exists(project_root) {
+                return true;
+            }
+        }
+    }
+    has_local_key(project_root)
+}
+
+/// Which backend currently has the key (Keychain preferred if both).
+pub fn detect_backend(project_root: &Path) -> Option<WalletBackend> {
+    if prefer_keychain() {
+        #[cfg(target_os = "macos")]
+        {
+            if keychain::exists(project_root) {
+                return Some(WalletBackend::Keychain);
+            }
+        }
+    }
+    if has_local_key(project_root) {
+        return Some(WalletBackend::File);
+    }
+    None
+}
+
+/// Clear unlock material from Keychain (if any) and file.
+pub fn clear_unlock_key(project_root: &Path) -> Result<(), ParaKeysError> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = keychain::delete(project_root);
+    }
+    clear_local_key(project_root)
 }
 
 /// Resolve project root from an optional `--path` (default: cwd).
@@ -120,10 +233,18 @@ pub fn project_root(path: Option<PathBuf>) -> Result<PathBuf, ParaKeysError> {
     }
 }
 
+/// Account string used for Keychain items (canonical path when possible).
+pub fn keychain_account(project_root: &Path) -> String {
+    std::fs::canonicalize(project_root)
+        .unwrap_or_else(|_| project_root.to_path_buf())
+        .to_string_lossy()
+        .into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vault::{encrypt, decrypt, VaultData};
+    use crate::vault::{decrypt, encrypt, VaultData};
 
     #[test]
     fn recovery_code_round_trip() {
@@ -144,29 +265,98 @@ mod tests {
     }
 
     #[test]
-    fn local_key_store_and_load() {
-        let dir = std::env::temp_dir().join(format!("parakeys-key-{}", std::process::id()));
+    fn unlock_key_file_fallback_store_load() {
+        let dir = std::env::temp_dir().join(format!(
+            "parakeys-key-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
 
         let key = VaultKey::generate();
+        // Exercise file backend API directly (no env races with parallel Keychain tests).
         store_local_key(&dir, &key).unwrap();
         assert!(has_local_key(&dir));
-        let loaded = load_local_key(&dir).unwrap();
+        assert!(has_unlock_key(&dir));
+        let loaded = load_unlock_key(&dir).unwrap();
         assert_eq!(loaded.as_bytes(), key.as_bytes());
 
-        // After clear, recovery can restore access for vault decrypt.
         let mut data = VaultData::new();
         data.set("K", "v");
         let envelope = encrypt(&data, &key).unwrap();
         clear_local_key(&dir).unwrap();
+        // After file cleared, unlock may still succeed via Keychain if a prior
+        // test left an item; clear all unlock material for this path.
+        let _ = clear_unlock_key(&dir);
         assert!(!has_local_key(&dir));
 
         let recovered = decode_recovery_code(&encode_recovery_code(&key)).unwrap();
         store_local_key(&dir, &recovered).unwrap();
-        let again = decrypt(&envelope, &load_local_key(&dir).unwrap()).unwrap();
+        let again = decrypt(&envelope, &load_unlock_key(&dir).unwrap()).unwrap();
         assert_eq!(again.get("K"), Some("v"));
 
+        let _ = clear_unlock_key(&dir);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn file_wallet_api_round_trip_direct() {
+        let dir = std::env::temp_dir().join(format!("parakeys-file-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let key = VaultKey::generate();
+        store_local_key(&dir, &key).unwrap();
+        assert!(has_local_key(&dir));
+        assert_eq!(load_local_key(&dir).unwrap().as_bytes(), key.as_bytes());
+        clear_local_key(&dir).unwrap();
+        assert!(!has_local_key(&dir));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn keychain_store_load_round_trip() {
+        // Use no user-presence for non-interactive test; still real Keychain API.
+        std::env::set_var("PARAKEYS_KEYCHAIN_NO_PRESENCE", "1");
+        std::env::remove_var("PARAKEYS_FORCE_FILE_WALLET");
+
+        let dir = std::env::temp_dir().join(format!(
+            "parakeys-kc-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let key = VaultKey::generate();
+        keychain::store(&dir, &key).expect("keychain store");
+        assert!(keychain::exists(&dir));
+        let loaded = keychain::load(&dir).expect("keychain load");
+        assert_eq!(loaded.as_bytes(), key.as_bytes());
+
+        // Decrypt vault using key from Keychain.
+        let mut data = VaultData::new();
+        data.set("KC", "from-keychain");
+        let env = encrypt(&data, &key).unwrap();
+        let plain = decrypt(&env, &loaded).unwrap();
+        assert_eq!(plain.get("KC"), Some("from-keychain"));
+
+        keychain::delete(&dir).expect("keychain delete");
+        assert!(!keychain::exists(&dir));
+
+        // File fallback after Keychain cleared.
+        store_local_key(&dir, &key).unwrap();
+        assert_eq!(load_unlock_key(&dir).unwrap().as_bytes(), key.as_bytes());
+
+        clear_unlock_key(&dir).unwrap();
+        std::env::remove_var("PARAKEYS_KEYCHAIN_NO_PRESENCE");
         let _ = fs::remove_dir_all(&dir);
     }
 }

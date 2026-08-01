@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use crate::envfile::{
     load_env_file, save_env_file, EnvFile, EnvLine, PLACEHOLDER_NOT_SET, PLACEHOLDER_SET,
 };
-use crate::keywallet::{load_local_key, project_root};
+use crate::keywallet::{load_unlock_key, project_root};
 use crate::vault::{default_vault_path, load_vault};
 
 pub fn sync(path: Option<PathBuf>, env_file: PathBuf) -> Result<()> {
@@ -19,7 +19,7 @@ pub fn sync(path: Option<PathBuf>, env_file: PathBuf) -> Result<()> {
         );
     }
 
-    let key = load_local_key(&root).context("load local key")?;
+    let key = load_unlock_key(&root).context("load local key")?;
     let vault = load_vault(&root, &key).context("decrypt vault")?;
     let vault_keys: BTreeSet<String> = vault.keys.keys().cloned().collect();
 
@@ -91,6 +91,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let key = VaultKey::generate();
+        // File wallet only so parallel tests do not race on Keychain/env.
         store_local_key(&dir, &key).unwrap();
         let mut data = VaultData::new();
         data.set("SECRET_TOKEN", "super-secret-value-xyz");

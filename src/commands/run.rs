@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use anyhow::{bail, Context, Result};
 
 use crate::envfile::{is_placeholder, load_env_file, PLACEHOLDER_SET};
-use crate::keywallet::{load_local_key, project_root};
+use crate::keywallet::{load_unlock_key, project_root};
 use crate::vault::{default_vault_path, load_vault};
 
 pub fn run(command: Vec<String>, path: Option<PathBuf>) -> Result<()> {
@@ -22,7 +22,7 @@ pub fn run(command: Vec<String>, path: Option<PathBuf>) -> Result<()> {
         );
     }
 
-    let key = load_local_key(&root).context("load local key")?;
+    let key = load_unlock_key(&root).context("load local key")?;
     let vault = load_vault(&root, &key).context("decrypt vault")?;
 
     // Start from the current process environment, then overlay vault + .env merge.

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{bail, Context, Result};
 
 use crate::envfile::{load_env_file, save_env_file};
-use crate::keywallet::{load_local_key, project_root};
+use crate::keywallet::{load_unlock_key, project_root};
 use crate::vault::{default_vault_path, load_vault, save_vault};
 
 pub fn run(env_file: PathBuf, path: Option<PathBuf>) -> Result<()> {
@@ -25,7 +25,7 @@ pub fn run(env_file: PathBuf, path: Option<PathBuf>) -> Result<()> {
         bail!("env file not found: {}", env_path.display());
     }
 
-    let key = load_local_key(&root).context("load local key")?;
+    let key = load_unlock_key(&root).context("load local key")?;
     let mut vault = load_vault(&root, &key).context("decrypt vault")?;
     let mut env = load_env_file(&env_path).context("read env file")?;
 

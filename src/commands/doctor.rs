@@ -5,7 +5,9 @@ use anyhow::{Context, Result};
 
 use crate::config::{config_path, load_config};
 use crate::envfile::{is_placeholder, load_env_file};
-use crate::keywallet::{has_local_key, load_local_key, local_key_path, project_root};
+use crate::keywallet::{
+    detect_backend, has_unlock_key, load_unlock_key, local_key_path, project_root, WalletBackend,
+};
 use crate::status::{classify_key, status_label, KeyStatus};
 use crate::vault::{default_vault_path, load_vault, VaultData};
 
@@ -49,12 +51,25 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
         issues += 1;
     }
 
-    if has_local_key(&root) {
-        println!("ok: local key at {}", local_key_path(&root).display());
+    if has_unlock_key(&root) {
+        match detect_backend(&root) {
+            Some(WalletBackend::Keychain) => {
+                println!("ok: unlock key in macOS Keychain (Touch ID / user presence when enabled)");
+            }
+            Some(WalletBackend::File) => {
+                println!(
+                    "ok: unlock key in file wallet at {}",
+                    local_key_path(&root).display()
+                );
+            }
+            None => {
+                println!("ok: unlock key present");
+            }
+        }
         oks += 1;
     } else {
         println!(
-            "error: local key missing (run `parakeys init` or `parakeys init --recover`)"
+            "error: unlock key missing (run `parakeys init` or `parakeys init --recover`)"
         );
         issues += 1;
     }
@@ -77,8 +92,8 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
     }
 
     // Shared status classification (same helper as `list`).
-    let vault_data: Option<VaultData> = if vault_path.is_file() && has_local_key(&root) {
-        match load_local_key(&root).and_then(|k| load_vault(&root, &k)) {
+    let vault_data: Option<VaultData> = if vault_path.is_file() && has_unlock_key(&root) {
+        match load_unlock_key(&root).and_then(|k| load_vault(&root, &k)) {
             Ok(v) => Some(v),
             Err(e) => {
                 println!("error: cannot decrypt vault for status check: {e}");

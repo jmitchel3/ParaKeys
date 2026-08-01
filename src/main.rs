@@ -1,19 +1,9 @@
 //! ParaKeys CLI: like Apple Passwords, but for dotenv.
 
-mod agent;
-mod cli;
-mod commands;
-mod config;
-mod envfile;
-mod error;
-mod keywallet;
-mod status;
-mod vault;
-
 use anyhow::Result;
 use clap::Parser;
-
-use cli::Cli;
+use parakeys::cli::Cli;
+use parakeys::commands;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

@@ -4,11 +4,10 @@ use anyhow::{bail, Context, Result};
 
 use crate::config::{save_config, ProjectConfig};
 use crate::keywallet::{
-    decode_recovery_code, encode_recovery_code, has_local_key, project_root, store_local_key,
+    clear_unlock_key, decode_recovery_code, detect_backend, encode_recovery_code, has_unlock_key,
+    project_root, store_unlock_key, WalletBackend,
 };
-use crate::vault::{
-    default_vault_path, load_vault, save_vault, VaultData, VaultKey,
-};
+use crate::vault::{default_vault_path, load_vault, save_vault, VaultData, VaultKey};
 
 pub fn run(path: Option<PathBuf>, recover: Option<String>, force: bool) -> Result<()> {
     let root = project_root(path).context("resolve project path")?;
@@ -20,21 +19,23 @@ pub fn run(path: Option<PathBuf>, recover: Option<String>, force: bool) -> Resul
 
     if vault_path.is_file() && !force {
         bail!(
-            "vault already exists at {} (use --force to recreate, or --recover CODE to restore the local key)",
+            "vault already exists at {} (use --force to recreate, or --recover CODE to restore unlock)",
             vault_path.display()
         );
     }
-    if has_local_key(&root) && !force {
+    if has_unlock_key(&root) && !force {
         bail!(
-            "local key already exists at {} (use --force to overwrite)",
-            crate::keywallet::local_key_path(&root).display()
+            "unlock key already present for this project (use --force to overwrite)"
         );
+    }
+    if force {
+        let _ = clear_unlock_key(&root);
     }
 
     let key = VaultKey::generate();
     let data = VaultData::new();
     save_vault(&root, &data, &key).context("write empty vault")?;
-    store_local_key(&root, &key).context("store local key")?;
+    let backend = store_unlock_key(&root, &key).context("store unlock key")?;
     let env_name = root
         .file_name()
         .and_then(|s| s.to_str())
@@ -52,13 +53,24 @@ pub fn run(path: Option<PathBuf>, recover: Option<String>, force: bool) -> Resul
         "Project config (non-secret) at {} (env_name={env_name})",
         cfg_path.display()
     );
-    println!("Local key stored at {}", crate::keywallet::local_key_path(&root).display());
+    match backend {
+        WalletBackend::Keychain => {
+            println!("Unlock key stored in macOS Keychain (Touch ID / user presence when available).");
+        }
+        WalletBackend::File => {
+            println!(
+                "Unlock key stored in file wallet at {}",
+                crate::keywallet::local_key_path(&root).display()
+            );
+            println!("(Keychain unavailable or PARAKEYS_FORCE_FILE_WALLET set.)");
+        }
+    }
     println!();
     println!("RECOVERY CODE (store offline; shown once):");
     println!("{code}");
     println!();
     println!("Anyone with this code can decrypt the vault. Do not commit it or paste it into agent chat.");
-    println!("Add `.parakeys/local.key` to .gitignore if it is not already ignored.");
+    println!("Add `.parakeys/local.key` to .gitignore if using the file wallet.");
 
     ensure_gitignore_hint(&root)?;
 
@@ -73,23 +85,35 @@ fn recover_key(root: &std::path::Path, code: &str, force: bool) -> Result<()> {
             vault_path.display()
         );
     }
-    if has_local_key(root) && !force {
+    if has_unlock_key(root) && !force {
         bail!(
-            "local key already present (use --force to replace it from the recovery code)"
+            "unlock key already present (use --force to replace it from the recovery code)"
         );
+    }
+    if force {
+        let _ = clear_unlock_key(root);
     }
 
     let key = decode_recovery_code(code).context("decode recovery code")?;
-    // Prove the code opens this vault before writing the local key.
     let _data = load_vault(root, &key).context(
-        "recovery code does not decrypt this vault (wrong code or wrong project)",
+        "recovery code does not decrypt this vault (wrong code or corrupt project)",
     )?;
-    store_local_key(root, &key).context("store local key")?;
+    let backend = store_unlock_key(root, &key).context("store unlock key")?;
 
-    println!(
-        "Local key restored at {}",
-        crate::keywallet::local_key_path(root).display()
-    );
+    match backend {
+        WalletBackend::Keychain => {
+            println!("Unlock key restored to macOS Keychain.");
+        }
+        WalletBackend::File => {
+            println!(
+                "Unlock key restored to file wallet at {}",
+                crate::keywallet::local_key_path(root).display()
+            );
+        }
+    }
+    if let Some(b) = detect_backend(root) {
+        println!("Active backend: {}", b.as_str());
+    }
     println!("Vault unlocks successfully.");
     Ok(())
 }
@@ -106,10 +130,12 @@ fn ensure_gitignore_hint(root: &std::path::Path) -> Result<()> {
     }) {
         return Ok(());
     }
-    // Best-effort append; not fatal.
     if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&gi) {
         use std::io::Write;
-        let _ = writeln!(f, "\n# ParaKeys local unlock key (never commit)\n.parakeys/local.key");
+        let _ = writeln!(
+            f,
+            "\n# ParaKeys local unlock key fallback (never commit)\n.parakeys/local.key"
+        );
         println!("Appended `.parakeys/local.key` to .gitignore");
     }
     Ok(())
