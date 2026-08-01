@@ -93,8 +93,12 @@ Multi-device: `git pull` gets `vault.enc` + `.env`; restore unlock with `parakey
 
 The desktop UI lives under `src/bin/parakeys_gui/`:
 
-- `ds.rs` — tokens (space, radius, type, color), theme, shared controls
-- `app.rs` — layout and product behavior built only from the design system
+- `ds.rs` — design system: scale tokens, semantic color, elevation/shadows, motion, and shared widgets (buttons, tiles, rows, cards, search, empty states)
+- `app.rs` — three-pane shell and product behavior built from those widgets
 - `main.rs` — entry
 
-Edit tokens in `ds.rs` first; avoid one-off magic numbers in the layout.
+**Tokens:** `Space`, `Radius`, `Type`, `Color`, `Layout`, `Motion`, `Elevation`.
+
+**Fluid interactions:** hover/selection animate via `anim` / `anim_fast` (cubic-out), soft fill blends, and raised shadows on interactive chrome.
+
+Edit `ds.rs` first when changing look or feel. Prefer design-system helpers over one-off colors, padding, or paint code in `app.rs`.

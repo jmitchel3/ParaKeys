@@ -3,13 +3,13 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Frame, Margin, RichText, Sense, Stroke, Vec2};
+use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Margin, RichText, Sense, Stroke, Vec2};
 
 use super::ds::{
     self, card, card_warning, category_tile, detail_field, empty_state, hairline, list_row,
-    panel_list, panel_main, panel_side, panel_toolbar, primary_button, search_field, section_label,
-    status_accent, text_body, text_body_secondary, text_caption, text_hero, text_title,
-    toolbar_pill, Color, Layout, Space, Type,
+    panel_list, panel_main, panel_side, panel_toolbar, primary_button, project_card, search_field,
+    section_label, status_accent, status_chip, text_body_secondary, text_caption, text_hero,
+    text_title, toolbar_pill, Color, Layout, Radius, Space, Type,
 };
 use parakeys::config::load_config;
 use parakeys::envfile::load_env_file;
@@ -455,37 +455,16 @@ impl eframe::App for App {
                 });
 
                 section_label(ui, "Project");
-                let out = Frame::new()
-                    .fill(Color::SURFACE)
-                    .stroke(Stroke::new(1.0, Color::BORDER))
-                    .corner_radius(CornerRadius::same(ds::Radius::MD))
-                    .inner_margin(Margin::symmetric(Space::MD as i8, Space::SM as i8 + 2))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            let (r, _) =
-                                ui.allocate_exact_size(Vec2::splat(Layout::ICON_SM + 4.0), Sense::hover());
-                            ui.painter().rect_filled(
-                                r,
-                                CornerRadius::same(ds::Radius::SM),
-                                Color::WARNING.gamma_multiply(0.25),
-                            );
-                            ui.add_space(Space::SM);
-                            ui.vertical(|ui| {
-                                ui.label(text_body(self.project_name()).strong());
-                                let w = if self.backend.is_empty() {
-                                    if self.has_vault {
-                                        "locked"
-                                    } else {
-                                        "no vault"
-                                    }
-                                } else {
-                                    self.backend.as_str()
-                                };
-                                ui.label(text_caption(w));
-                            });
-                        });
-                    });
-                let _ = out;
+                let wallet = if self.backend.is_empty() {
+                    if self.has_vault {
+                        "locked"
+                    } else {
+                        "no vault"
+                    }
+                } else {
+                    self.backend.as_str()
+                };
+                let _ = project_card(ui, &self.project_name(), wallet, Color::WARNING);
                 ui.add_space(Space::XS);
                 ui.label(text_caption(self.short_path()));
 
@@ -623,10 +602,11 @@ impl eframe::App for App {
                 // Hero
                 ui.vertical_centered(|ui| {
                     let (accent, _) = status_accent(status_kind(row.status));
-                    let (r, _) = ui.allocate_exact_size(Vec2::splat(Layout::ICON_LG + 8.0), Sense::hover());
+                    let (r, _) =
+                        ui.allocate_exact_size(Vec2::splat(Layout::ICON_LG + 8.0), Sense::hover());
                     ui.painter().rect(
                         r,
-                        CornerRadius::same(ds::Radius::XL),
+                        CornerRadius::same(Radius::XXL),
                         accent,
                         Stroke::NONE,
                         egui::StrokeKind::Inside,
@@ -640,49 +620,52 @@ impl eframe::App for App {
                     );
                     ui.add_space(Space::MD);
                     ui.label(text_hero(&row.name));
-                    ui.label(text_body_secondary(status_short(row.status)));
+                    ui.add_space(Space::XS);
+                    status_chip(ui, status_short(row.status), accent);
                 });
 
                 ui.add_space(Space::XL);
 
-                card().inner_margin(Margin::symmetric(Space::LG as i8, Space::XS as i8)).show(ui, |ui| {
-                    detail_field(ui, "Name", &row.name, false);
-                    hairline(ui);
-                    let val = if self.reveal {
-                        row.value.clone().unwrap_or_else(|| "—".into())
-                    } else if row.status == KeyStatus::SetInVault {
-                        "••••••••••••".into()
-                    } else {
-                        "—".into()
-                    };
-                    detail_field(ui, "Value", &val, self.reveal);
-                    hairline(ui);
-                    detail_field(ui, "Status", status_short(row.status), false);
-                    hairline(ui);
-                    detail_field(
-                        ui,
-                        "Environment",
-                        if self.env_name.is_empty() {
-                            "—"
+                card()
+                    .inner_margin(Margin::symmetric(Space::LG as i8, Space::XS as i8))
+                    .show(ui, |ui| {
+                        detail_field(ui, "Name", &row.name, false);
+                        hairline(ui);
+                        let val = if self.reveal {
+                            row.value.clone().unwrap_or_else(|| "not set".into())
+                        } else if row.status == KeyStatus::SetInVault {
+                            "••••••••••••".into()
                         } else {
-                            &self.env_name
-                        },
-                        false,
-                    );
-                    hairline(ui);
-                    detail_field(
-                        ui,
-                        "Wallet",
-                        if self.backend.is_empty() {
-                            "—"
-                        } else {
-                            &self.backend
-                        },
-                        false,
-                    );
-                    hairline(ui);
-                    detail_field(ui, "Project", &self.project_name(), false);
-                });
+                            "not set".into()
+                        };
+                        detail_field(ui, "Value", &val, self.reveal);
+                        hairline(ui);
+                        detail_field(ui, "Status", status_short(row.status), false);
+                        hairline(ui);
+                        detail_field(
+                            ui,
+                            "Environment",
+                            if self.env_name.is_empty() {
+                                "default"
+                            } else {
+                                &self.env_name
+                            },
+                            false,
+                        );
+                        hairline(ui);
+                        detail_field(
+                            ui,
+                            "Wallet",
+                            if self.backend.is_empty() {
+                                "none"
+                            } else {
+                                &self.backend
+                            },
+                            false,
+                        );
+                        hairline(ui);
+                        detail_field(ui, "Project", &self.project_name(), false);
+                    });
 
                 ui.add_space(Space::LG);
                 card().show(ui, |ui| {
