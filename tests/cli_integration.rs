@@ -9,8 +9,10 @@ fn bin() -> PathBuf {
 }
 
 fn run_pk(args: &[&str]) -> std::process::Output {
+    // File wallet keeps recovery wipe deterministic without Keychain side effects.
     Command::new(bin())
         .args(args)
+        .env("PARAKEYS_FORCE_FILE_WALLET", "1")
         .output()
         .expect("spawn parakeys")
 }
@@ -50,6 +52,11 @@ fn init_import_run_and_recover() {
         .expect("recovery code line after RECOVERY CODE header")
         .to_string();
 
+    assert!(
+        dir.join(".parakeys/local.key").is_file(),
+        "FORCE_FILE_WALLET should create local.key"
+    );
+
     fs::write(
         dir.join(".env"),
         "DATABASE_URL=postgres://integration-secret\nAPI_KEY=sk-integration-test-key-123456\n",
@@ -86,7 +93,6 @@ fn init_import_run_and_recover() {
         "postgres://integration-secret"
     );
 
-    // File still placeholders after run
     let env_still = fs::read_to_string(dir.join(".env")).unwrap();
     assert!(!env_still.contains("integration-secret"));
 
