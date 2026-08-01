@@ -88,3 +88,17 @@ Suggested project `.gitignore` snippet:
 ```
 
 Multi-device: `git pull` gets `vault.enc` + `.env`; restore unlock with `parakeys init --recover '<code>'` (stores to Keychain when available).
+
+## GUI design system
+
+The desktop UI lives under `src/bin/parakeys_gui/`:
+
+- `ds.rs` — design system: scale tokens, semantic color, elevation/shadows, motion, and shared widgets (buttons, tiles, rows, cards, search, empty states)
+- `app.rs` — three-pane shell and product behavior built from those widgets
+- `main.rs` — entry
+
+**Tokens:** `Space`, `Radius`, `Type`, `Color`, `Layout`, `Motion`, `Elevation`.
+
+**Fluid interactions:** hover/selection animate via `anim` / `anim_fast` (cubic-out), soft fill blends, and raised shadows on interactive chrome.
+
+Edit `ds.rs` first when changing look or feel. Prefer design-system helpers over one-off colors, padding, or paint code in `app.rs`.
