@@ -24,9 +24,7 @@ pub fn run(path: Option<PathBuf>, recover: Option<String>, force: bool) -> Resul
         );
     }
     if has_unlock_key(&root) && !force {
-        bail!(
-            "unlock key already present for this project (use --force to overwrite)"
-        );
+        bail!("unlock key already present for this project (use --force to overwrite)");
     }
     if force {
         let _ = clear_unlock_key(&root);
@@ -35,7 +33,7 @@ pub fn run(path: Option<PathBuf>, recover: Option<String>, force: bool) -> Resul
     let key = VaultKey::generate();
     let data = VaultData::new();
     save_vault(&root, &data, &key).context("write empty vault")?;
-    let backend = store_unlock_key(&root, &key).context("store unlock key")?;
+    let outcome = store_unlock_key(&root, &key).context("store unlock key")?;
     let env_name = root
         .file_name()
         .and_then(|s| s.to_str())
@@ -53,17 +51,9 @@ pub fn run(path: Option<PathBuf>, recover: Option<String>, force: bool) -> Resul
         "Project config (non-secret) at {} (env_name={env_name})",
         cfg_path.display()
     );
-    match backend {
-        WalletBackend::Keychain => {
-            println!("Unlock key stored in macOS Keychain (Touch ID / user presence when available).");
-        }
-        WalletBackend::File => {
-            println!(
-                "Unlock key stored in file wallet at {}",
-                crate::keywallet::local_key_path(&root).display()
-            );
-            println!("(Keychain unavailable or PARAKEYS_FORCE_FILE_WALLET set.)");
-        }
+    print_backend(&outcome.backend, &root);
+    for note in &outcome.notes {
+        eprintln!("note: {note}");
     }
     println!();
     println!("RECOVERY CODE (store offline; shown once):");
@@ -86,9 +76,7 @@ fn recover_key(root: &std::path::Path, code: &str, force: bool) -> Result<()> {
         );
     }
     if has_unlock_key(root) && !force {
-        bail!(
-            "unlock key already present (use --force to replace it from the recovery code)"
-        );
+        bail!("unlock key already present (use --force to replace it from the recovery code)");
     }
     if force {
         let _ = clear_unlock_key(root);
@@ -98,24 +86,36 @@ fn recover_key(root: &std::path::Path, code: &str, force: bool) -> Result<()> {
     let _data = load_vault(root, &key).context(
         "recovery code does not decrypt this vault (wrong code or corrupt project)",
     )?;
-    let backend = store_unlock_key(root, &key).context("store unlock key")?;
+    let outcome = store_unlock_key(root, &key).context("store unlock key")?;
 
-    match backend {
-        WalletBackend::Keychain => {
-            println!("Unlock key restored to macOS Keychain.");
-        }
-        WalletBackend::File => {
-            println!(
-                "Unlock key restored to file wallet at {}",
-                crate::keywallet::local_key_path(root).display()
-            );
-        }
+    print_backend(&outcome.backend, root);
+    for note in &outcome.notes {
+        eprintln!("note: {note}");
     }
     if let Some(b) = detect_backend(root) {
         println!("Active backend: {}", b.as_str());
     }
     println!("Vault unlocks successfully.");
     Ok(())
+}
+
+fn print_backend(backend: &WalletBackend, root: &std::path::Path) {
+    match backend {
+        WalletBackend::KeychainUserPresence => {
+            println!(
+                "Unlock key stored in macOS Keychain with user presence (Touch ID / passcode)."
+            );
+        }
+        WalletBackend::Keychain => {
+            println!("Unlock key stored in macOS Keychain.");
+        }
+        WalletBackend::File => {
+            println!(
+                "Unlock key stored in file wallet at {}",
+                crate::keywallet::local_key_path(root).display()
+            );
+        }
+    }
 }
 
 fn ensure_gitignore_hint(root: &std::path::Path) -> Result<()> {

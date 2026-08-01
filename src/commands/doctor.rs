@@ -53,8 +53,11 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
 
     if has_unlock_key(&root) {
         match detect_backend(&root) {
+            Some(WalletBackend::KeychainUserPresence) => {
+                println!("ok: unlock key in macOS Keychain (user presence / Touch ID)");
+            }
             Some(WalletBackend::Keychain) => {
-                println!("ok: unlock key in macOS Keychain (Touch ID / user presence when enabled)");
+                println!("ok: unlock key in macOS Keychain");
             }
             Some(WalletBackend::File) => {
                 println!(

@@ -33,6 +33,8 @@ struct ParaKeysApp {
     status: String,
     keys: Vec<(String, String)>, // name, status label
     reveal: bool,
+    /// Previous reveal checkbox value; only reload unlock on toggle, not every frame.
+    prev_reveal: bool,
     revealed: Vec<(String, String)>,
     recovery_shown: String,
     run_cmd: String,
@@ -141,18 +143,27 @@ impl ParaKeysApp {
             return;
         }
         match store_unlock_key(&root, &key) {
-            Ok(backend) => {
+            Ok(outcome) => {
                 self.recovery_shown = encode_recovery_code(&key);
-                self.status = match backend {
+                let mut msg = match outcome.backend {
+                    WalletBackend::KeychainUserPresence => {
+                        "Initialized vault; unlock key in Keychain (Touch ID / user presence). Save recovery code below."
+                            .to_string()
+                    }
                     WalletBackend::Keychain => {
                         "Initialized vault; unlock key in Keychain. Save recovery code below."
-                            .into()
+                            .to_string()
                     }
                     WalletBackend::File => {
                         "Initialized vault; unlock key in file wallet. Save recovery code below."
-                            .into()
+                            .to_string()
                     }
                 };
+                for n in &outcome.notes {
+                    msg.push_str("\n");
+                    msg.push_str(n);
+                }
+                self.status = msg;
                 self.refresh_keys();
             }
             Err(e) => self.status = format!("store unlock key failed: {e}"),
@@ -281,8 +292,11 @@ impl eframe::App for ParaKeysApp {
                 if ui.button("Import .env").clicked() {
                     self.do_import();
                 }
-                ui.checkbox(&mut self.reveal, "Reveal secrets");
-                if self.reveal {
+                let reveal_response = ui.checkbox(&mut self.reveal, "Reveal secrets");
+                // Only reload unlock/decrypt when the checkbox toggles, never every frame
+                // (user-presence Keychain would re-prompt biometrics at ~60Hz otherwise).
+                if reveal_response.changed() || self.reveal != self.prev_reveal {
+                    self.prev_reveal = self.reveal;
                     self.refresh_keys();
                 }
             });

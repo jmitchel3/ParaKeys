@@ -30,10 +30,11 @@ Second machine: pull repo, then `parakeys init --recover '<code>'`.
 
 | Backend | When |
 |---------|------|
-| **Keychain** (primary) | Default on macOS. Unlock may prompt Touch ID / user presence. |
-| **File** (fallback) | If Keychain fails, or `PARAKEYS_FORCE_FILE_WALLET=1`. Path: `.parakeys/local.key` (never commit). |
+| **Keychain + user presence** | Preferred when the binary has Keychain entitlements (Touch ID / passcode). |
+| **Keychain** (plain) | Default for typical unsigned CLI builds after presence ACL fails (`errSecMissingEntitlement`). Still Keychain, not a file. |
+| **File** (fallback) | If Keychain store fails entirely, or `PARAKEYS_FORCE_FILE_WALLET=1`. Path: `.parakeys/local.key` (never commit). |
 
-Tests may set `PARAKEYS_KEYCHAIN_NO_PRESENCE=1` to avoid interactive biometry.
+`init` prints notes when it degrades from presence → plain Keychain → file. Set `PARAKEYS_KEYCHAIN_NO_PRESENCE=1` only for non-interactive tests that skip the presence attempt.
 
 ## GUI (macOS)
 
