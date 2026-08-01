@@ -5,7 +5,7 @@ use anyhow::{bail, Context, Result};
 use crate::envfile::{
     load_env_file, save_env_file, EnvFile, EnvLine, PLACEHOLDER_SET,
 };
-use crate::keywallet::{load_local_key, project_root};
+use crate::keywallet::{load_unlock_key, project_root};
 use crate::vault::{default_vault_path, load_vault, save_vault};
 
 pub fn run(key_arg: String, value_flag: Option<String>, path: Option<PathBuf>) -> Result<()> {
@@ -23,7 +23,7 @@ pub fn run(key_arg: String, value_flag: Option<String>, path: Option<PathBuf>) -
         );
     }
 
-    let vault_key = load_local_key(&root).context("load local key")?;
+    let vault_key = load_unlock_key(&root).context("load local key")?;
     let mut vault = load_vault(&root, &vault_key).context("decrypt vault")?;
     vault.set(key.clone(), value);
     save_vault(&root, &vault, &vault_key).context("write vault")?;

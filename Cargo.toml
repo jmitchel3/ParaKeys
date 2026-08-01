@@ -7,9 +7,22 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/jmitchel3/ParaKeys"
 readme = "README.md"
 
+[lib]
+name = "parakeys"
+path = "src/lib.rs"
+
 [[bin]]
 name = "parakeys"
 path = "src/main.rs"
+
+[[bin]]
+name = "parakeys-gui"
+path = "src/bin/parakeys_gui.rs"
+required-features = ["gui"]
+
+[features]
+default = ["gui"]
+gui = ["dep:eframe", "dep:egui", "dep:rfd"]
 
 [dependencies]
 anyhow = "1.0.104"
@@ -22,3 +35,9 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = "2.0.19"
 toml = "1.1.4"
+eframe = { version = "0.31", optional = true }
+egui = { version = "0.31", optional = true }
+rfd = { version = "0.15", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7.0"

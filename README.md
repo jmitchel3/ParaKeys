@@ -6,9 +6,9 @@ Encrypted project environments, multi-device sync without a required backend, an
 
 ## Status
 
-MVP vertical slice works: `init` → `import` → `run`. Remaining: set/unset/list/doctor polish.
+Human MVP + Mac polish: CLI, **macOS Keychain / Touch ID unlock** (with file fallback), and a **desktop GUI**.
 
-## Quick start
+## CLI quick start
 
 ```sh
 cargo build --release
@@ -20,9 +20,35 @@ cargo build --release
 # .env now has <set in parakeys> placeholders
 
 ./target/release/parakeys run -- your-command
+./target/release/parakeys list
+./target/release/parakeys doctor
 ```
 
 Second machine: pull repo, then `parakeys init --recover '<code>'`.
+
+### Unlock wallet (macOS)
+
+| Backend | When |
+|---------|------|
+| **Keychain** (primary) | Default on macOS. Unlock may prompt Touch ID / user presence. |
+| **File** (fallback) | If Keychain fails, or `PARAKEYS_FORCE_FILE_WALLET=1`. Path: `.parakeys/local.key` (never commit). |
+
+Tests may set `PARAKEYS_KEYCHAIN_NO_PRESENCE=1` to avoid interactive biometry.
+
+## GUI (macOS)
+
+```sh
+cargo build --release --features gui
+./target/release/parakeys-gui
+```
+
+The GUI is a Passwords-like shell over the same vault/wallet code as the CLI:
+
+- Choose a project folder
+- List keys by **status** (secrets hidden unless Reveal)
+- **Init vault**, **Import .env**, **parakeys run** (via sibling CLI)
+
+Requires the `gui` feature (default). Builds `parakeys-gui` next to `parakeys`.
 
 ## Documentation
 
@@ -48,7 +74,7 @@ project/
   .parakeys/
     vault.enc               # encrypted vault (safe to commit)
     config.toml             # optional non-secret metadata (safe to commit)
-    local.key               # NEVER commit (mode 0600; gitignored)
+    local.key               # NEVER commit (file wallet fallback; gitignored)
   .parakeys-agent/          # agent-only material (gitignored)
 ```
 
@@ -60,4 +86,4 @@ Suggested project `.gitignore` snippet:
 .parakeys-agent/
 ```
 
-Multi-device: `git pull` gets `vault.enc` + `.env`; restore unlock with `parakeys init --recover '<code>'`.
+Multi-device: `git pull` gets `vault.enc` + `.env`; restore unlock with `parakeys init --recover '<code>'` (stores to Keychain when available).

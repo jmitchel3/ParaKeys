@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{bail, Context, Result};
 
 use crate::agent::{create_grant, load_recipient_key_from_pub_file, save_grant};
-use crate::keywallet::{load_local_key, project_root};
+use crate::keywallet::{load_unlock_key, project_root};
 use crate::vault::{default_vault_path, load_vault};
 
 pub fn create(to: PathBuf, keys: String, out: PathBuf, path: Option<PathBuf>) -> Result<()> {
@@ -21,7 +21,7 @@ pub fn create(to: PathBuf, keys: String, out: PathBuf, path: Option<PathBuf>) ->
         bail!("provide at least one key via --keys A,B");
     }
 
-    let human = load_local_key(&root).context("load human local key")?;
+    let human = load_unlock_key(&root).context("load human local key")?;
     let vault = load_vault(&root, &human).context("decrypt vault")?;
     let recipient = load_recipient_key_from_pub_file(&to).context("load agent.pub")?;
     let grant = create_grant(&vault, &allowlist, &recipient).context("create grant")?;
