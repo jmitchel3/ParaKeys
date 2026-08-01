@@ -1,9 +1,11 @@
-//! ParaKeys desktop GUI — refined Passwords-like surface with a quiet Grok signal.
+//! ParaKeys desktop GUI — Passwords-like density, less toolkit chrome.
 
 use std::path::PathBuf;
 use std::process::Command;
 
-use eframe::egui::{self, Color32, CornerRadius, FontId, Frame, Margin, RichText, Sense, Stroke, Vec2};
+use eframe::egui::{
+    self, Color32, CornerRadius, FontId, Frame, Margin, RichText, Sense, Stroke, Vec2,
+};
 use parakeys::config::load_config;
 use parakeys::envfile::load_env_file;
 use parakeys::keywallet::{
@@ -13,128 +15,110 @@ use parakeys::keywallet::{
 use parakeys::status::{classify_key, status_label, KeyStatus};
 use parakeys::vault::{default_vault_path, load_vault, save_vault, VaultData, VaultKey};
 
-// ─── Design tokens: “Apple vault, night sky, one signal” ───────────────────
-// Not generic cream, not acid cyberpunk. Cool graphite + soft violet haze +
-// a single electric teal used sparingly (the “signal”).
-
+// System-adjacent dark: closer to macOS Passwords / Settings night mode.
 struct Palette;
 impl Palette {
-    const BG: Color32 = Color32::from_rgb(18, 18, 22);
-    const BG_ELEVATED: Color32 = Color32::from_rgb(28, 28, 34);
-    const BG_SIDE: Color32 = Color32::from_rgb(22, 22, 28);
-    const BG_ROW: Color32 = Color32::from_rgb(32, 32, 40);
-    const BG_ROW_HOVER: Color32 = Color32::from_rgb(40, 40, 50);
-    const STROKE: Color32 = Color32::from_rgb(55, 55, 68);
-    const TEXT: Color32 = Color32::from_rgb(242, 242, 247);
-    const TEXT_DIM: Color32 = Color32::from_rgb(142, 142, 158);
-    const TEXT_MUTED: Color32 = Color32::from_rgb(99, 99, 112);
-    const SIGNAL: Color32 = Color32::from_rgb(90, 200, 250); // cool system blue-cyan
-    const SIGNAL_SOFT: Color32 = Color32::from_rgb(40, 80, 110);
-    const SUCCESS: Color32 = Color32::from_rgb(52, 199, 89);
-    const WARN: Color32 = Color32::from_rgb(255, 159, 10);
-    const RECOVERY_BG: Color32 = Color32::from_rgb(48, 32, 20);
-    const RECOVERY_STROKE: Color32 = Color32::from_rgb(180, 100, 40);
+    const BG: Color32 = Color32::from_rgb(28, 28, 30);
+    const BG_SIDE: Color32 = Color32::from_rgb(36, 36, 38);
+    const BG_CARD: Color32 = Color32::from_rgb(44, 44, 46);
+    const BG_INPUT: Color32 = Color32::from_rgb(54, 54, 56);
+    const BG_HOVER: Color32 = Color32::from_rgb(58, 58, 60);
+    const STROKE: Color32 = Color32::from_rgb(58, 58, 60);
+    const DIVIDER: Color32 = Color32::from_rgb(56, 56, 58);
+    const TEXT: Color32 = Color32::from_rgb(255, 255, 255);
+    const TEXT_SEC: Color32 = Color32::from_rgb(152, 152, 157);
+    const TEXT_TERT: Color32 = Color32::from_rgb(110, 110, 115);
+    const BLUE: Color32 = Color32::from_rgb(10, 132, 255);
+    const BLUE_FILL: Color32 = Color32::from_rgb(10, 132, 255);
+    const GREEN: Color32 = Color32::from_rgb(48, 209, 88);
+    const ORANGE: Color32 = Color32::from_rgb(255, 159, 10);
+    const SELECT: Color32 = Color32::from_rgb(48, 48, 52);
 }
 
 fn apply_theme(ctx: &egui::Context) {
-    let mut visuals = egui::Visuals::dark();
-    visuals.override_text_color = Some(Palette::TEXT);
-    visuals.widgets.noninteractive.bg_fill = Palette::BG_ELEVATED;
-    visuals.widgets.inactive.bg_fill = Palette::BG_ROW;
-    visuals.widgets.hovered.bg_fill = Palette::BG_ROW_HOVER;
-    visuals.widgets.active.bg_fill = Palette::SIGNAL_SOFT;
-    visuals.widgets.open.bg_fill = Palette::BG_ROW;
-    visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Palette::TEXT);
-    visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Palette::TEXT);
-    visuals.selection.bg_fill = Palette::SIGNAL_SOFT;
-    visuals.selection.stroke = Stroke::new(1.0, Palette::SIGNAL);
-    visuals.panel_fill = Palette::BG;
-    visuals.window_fill = Palette::BG;
-    visuals.extreme_bg_color = Palette::BG_SIDE;
-    visuals.faint_bg_color = Palette::BG_ELEVATED;
-    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, Palette::STROKE);
-    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Palette::STROKE);
-    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Palette::SIGNAL.gamma_multiply(0.5));
-    visuals.window_corner_radius = CornerRadius::same(12);
-    visuals.menu_corner_radius = CornerRadius::same(10);
-    visuals.button_frame = true;
-    ctx.set_visuals(visuals);
+    let mut v = egui::Visuals::dark();
+    v.override_text_color = Some(Palette::TEXT);
+    v.panel_fill = Palette::BG;
+    v.window_fill = Palette::BG;
+    v.extreme_bg_color = Palette::BG_INPUT;
+    v.faint_bg_color = Palette::BG_CARD;
+    v.widgets.noninteractive.bg_fill = Palette::BG_CARD;
+    v.widgets.inactive.bg_fill = Palette::BG_CARD;
+    v.widgets.hovered.bg_fill = Palette::BG_HOVER;
+    v.widgets.active.bg_fill = Palette::BLUE.gamma_multiply(0.35);
+    v.widgets.inactive.bg_stroke = Stroke::new(0.5, Palette::STROKE);
+    v.widgets.hovered.bg_stroke = Stroke::new(0.5, Palette::STROKE);
+    v.widgets.noninteractive.bg_stroke = Stroke::new(0.5, Palette::STROKE);
+    v.selection.bg_fill = Palette::SELECT;
+    v.window_corner_radius = CornerRadius::same(10);
+    ctx.set_visuals(v);
 
     let mut style = (*ctx.style()).clone();
-    style.spacing.item_spacing = Vec2::new(10.0, 8.0);
-    style.spacing.button_padding = Vec2::new(14.0, 8.0);
-    style.spacing.indent = 18.0;
+    style.spacing.item_spacing = Vec2::new(8.0, 6.0);
+    style.spacing.button_padding = Vec2::new(12.0, 6.0);
     style.interaction.selectable_labels = false;
     ctx.set_style(style);
 }
 
-fn primary_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+fn blue_btn(ui: &mut egui::Ui, label: &str) -> egui::Response {
     ui.add(
-        egui::Button::new(RichText::new(label).color(Color32::from_rgb(10, 20, 30)).strong())
-            .fill(Palette::SIGNAL)
+        egui::Button::new(RichText::new(label).color(Color32::WHITE).size(13.0).strong())
+            .fill(Palette::BLUE_FILL)
             .stroke(Stroke::NONE)
-            .corner_radius(CornerRadius::same(8))
-            .min_size(Vec2::new(0.0, 32.0)),
+            .corner_radius(CornerRadius::same(6))
+            .min_size(Vec2::new(0.0, 28.0)),
     )
 }
 
-fn secondary_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+fn gray_btn(ui: &mut egui::Ui, label: &str) -> egui::Response {
     ui.add(
-        egui::Button::new(RichText::new(label).color(Palette::TEXT))
-            .fill(Palette::BG_ROW)
-            .stroke(Stroke::new(1.0, Palette::STROKE))
-            .corner_radius(CornerRadius::same(8))
-            .min_size(Vec2::new(0.0, 32.0)),
+        egui::Button::new(RichText::new(label).color(Palette::TEXT).size(13.0))
+            .fill(Palette::BG_CARD)
+            .stroke(Stroke::new(0.5, Palette::STROKE))
+            .corner_radius(CornerRadius::same(6))
+            .min_size(Vec2::new(0.0, 28.0)),
     )
 }
 
-fn ghost_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+fn link_btn(ui: &mut egui::Ui, label: &str) -> egui::Response {
     ui.add(
-        egui::Button::new(RichText::new(label).color(Palette::TEXT_DIM).size(13.0))
+        egui::Button::new(RichText::new(label).color(Palette::BLUE).size(13.0))
             .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::NONE)
-            .corner_radius(CornerRadius::same(6)),
+            .stroke(Stroke::NONE),
     )
 }
 
-fn status_pill(ui: &mut egui::Ui, status: &str) {
-    let (fg, bg) = if status.contains("set in parakeys") && !status.contains("not set") {
-        (Palette::SUCCESS, Color32::from_rgb(20, 48, 28))
-    } else if status.contains("not set") {
-        (Palette::TEXT_DIM, Color32::from_rgb(40, 40, 48))
-    } else if status.contains("plaintext") {
-        (Palette::WARN, Color32::from_rgb(48, 36, 16))
-    } else {
-        (Palette::TEXT_DIM, Palette::BG_ROW)
+fn section_label(ui: &mut egui::Ui, text: &str) {
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(text)
+            .size(11.0)
+            .color(Palette::TEXT_TERT)
+            .strong(),
+    );
+    ui.add_space(4.0);
+}
+
+fn status_chip(ui: &mut egui::Ui, status: KeyStatus) {
+    let (label, fg, bg) = match status {
+        KeyStatus::SetInVault => ("Set", Palette::GREEN, Color32::from_rgb(20, 40, 24)),
+        KeyStatus::NotSet => ("Not set", Palette::TEXT_TERT, Color32::from_rgb(48, 48, 50)),
+        KeyStatus::PlaintextOnDisk => ("On disk", Palette::ORANGE, Color32::from_rgb(48, 36, 12)),
     };
     Frame::new()
         .fill(bg)
-        .corner_radius(CornerRadius::same(6))
-        .inner_margin(Margin::symmetric(8, 3))
+        .corner_radius(CornerRadius::same(4))
+        .inner_margin(Margin::symmetric(6, 2))
         .show(ui, |ui| {
-            ui.label(RichText::new(status).size(11.0).color(fg));
+            ui.label(RichText::new(label).size(11.0).color(fg));
         });
-}
-
-fn monogram(ui: &mut egui::Ui) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::splat(36.0), Sense::hover());
-    let painter = ui.painter();
-    painter.circle_filled(rect.center(), 18.0, Palette::SIGNAL_SOFT);
-    painter.circle_stroke(rect.center(), 18.0, Stroke::new(1.0, Palette::SIGNAL.gamma_multiply(0.6)));
-    painter.text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        "pk",
-        FontId::proportional(14.0),
-        Palette::SIGNAL,
-    );
 }
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([920.0, 640.0])
-            .with_min_inner_size([720.0, 480.0])
+            .with_inner_size([880.0, 600.0])
+            .with_min_inner_size([700.0, 440.0])
             .with_title("ParaKeys"),
         ..Default::default()
     };
@@ -143,7 +127,13 @@ fn main() -> eframe::Result<()> {
         options,
         Box::new(|cc| {
             apply_theme(&cc.egui_ctx);
-            Ok(Box::new(ParaKeysApp::default()))
+            let mut app = ParaKeysApp::default();
+            // Default to cwd so the app is useful immediately.
+            if let Ok(cwd) = project_root(None) {
+                app.project_path = cwd.display().to_string();
+                app.refresh_keys();
+            }
+            Ok(Box::new(app))
         }),
     )
 }
@@ -159,7 +149,8 @@ struct ParaKeysApp {
     run_cmd: String,
     last_backend: String,
     env_name: String,
-    key_count: usize,
+    has_vault: bool,
+    has_unlock: bool,
 }
 
 impl Default for ParaKeysApp {
@@ -175,7 +166,8 @@ impl Default for ParaKeysApp {
             run_cmd: String::new(),
             last_backend: String::new(),
             env_name: String::new(),
-            key_count: 0,
+            has_vault: false,
+            has_unlock: false,
         }
     }
 }
@@ -189,15 +181,26 @@ impl ParaKeysApp {
         Ok(PathBuf::from(p))
     }
 
-    fn project_label(&self) -> String {
-        if let Ok(root) = self.root() {
-            root.file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("Project")
-                .to_string()
-        } else {
-            "Project".into()
+    fn project_title(&self) -> String {
+        self.root()
+            .ok()
+            .and_then(|r| r.file_name().map(|s| s.to_string_lossy().into_owned()))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "No Project".into())
+    }
+
+    fn short_path(&self) -> String {
+        let p = self.project_path.trim();
+        if p.is_empty() {
+            return "Choose a folder".into();
         }
+        // Collapse home for display
+        if let Ok(home) = std::env::var("HOME") {
+            if let Some(rest) = p.strip_prefix(&home) {
+                return format!("~{rest}");
+            }
+        }
+        p.to_string()
     }
 
     fn refresh_keys(&mut self) {
@@ -205,7 +208,9 @@ impl ParaKeysApp {
         self.revealed.clear();
         self.last_backend.clear();
         self.env_name.clear();
-        self.key_count = 0;
+        self.has_vault = false;
+        self.has_unlock = false;
+
         let root = match self.root() {
             Ok(r) => r,
             Err(e) => {
@@ -213,22 +218,26 @@ impl ParaKeysApp {
                 return;
             }
         };
+
         if let Some(b) = detect_backend(&root) {
             self.last_backend = b.as_str().to_string();
         }
-        let vault_path = default_vault_path(&root);
-        if !vault_path.is_file() {
-            self.status = "No vault yet. Create one to begin.".into();
+        self.has_vault = default_vault_path(&root).is_file();
+        self.has_unlock = has_unlock_key(&root);
+
+        if !self.has_vault {
+            self.status = String::new();
             return;
         }
-        if !has_unlock_key(&root) {
-            self.status = "No unlock key. Init a vault or recover with the CLI.".into();
+        if !self.has_unlock {
+            self.status = "This vault needs an unlock key. Recover from the CLI if needed.".into();
             return;
         }
+
         let key = match load_unlock_key(&root) {
             Ok(k) => k,
             Err(e) => {
-                self.status = format!("Could not unlock: {e}");
+                self.status = format!("Unlock failed: {e}");
                 return;
             }
         };
@@ -239,15 +248,16 @@ impl ParaKeysApp {
                 return;
             }
         };
+
         let mut env_map = std::collections::BTreeMap::new();
-        let env_path = root.join(".env");
-        if env_path.is_file() {
-            if let Ok(env) = load_env_file(&env_path) {
+        if root.join(".env").is_file() {
+            if let Ok(env) = load_env_file(&root.join(".env")) {
                 for (k, v) in env.assignments() {
                     env_map.insert(k.to_string(), v.to_string());
                 }
             }
         }
+
         let mut names: std::collections::BTreeSet<String> = vault.keys.keys().cloned().collect();
         names.extend(env_map.keys().cloned());
         for name in names {
@@ -261,25 +271,11 @@ impl ParaKeysApp {
                 }
             }
         }
-        self.key_count = self.keys.len();
+
         self.env_name = load_config(&root)
             .map(|c| c.env_name)
-            .unwrap_or_else(|_| "default".into());
-        self.status = if self.key_count == 0 {
-            "Vault is ready. Import a .env or add keys from the CLI.".into()
-        } else {
-            format!(
-                "{} key{} · {} · {}",
-                self.key_count,
-                if self.key_count == 1 { "" } else { "s" },
-                self.env_name,
-                if self.last_backend.is_empty() {
-                    "locked"
-                } else {
-                    &self.last_backend
-                }
-            )
-        };
+            .unwrap_or_else(|_| "local".into());
+        self.status = String::new();
     }
 
     fn do_init(&mut self) {
@@ -291,7 +287,7 @@ impl ParaKeysApp {
             }
         };
         if default_vault_path(&root).is_file() {
-            self.status = "This project already has a vault.".into();
+            self.status = "A vault already exists for this project.".into();
             return;
         }
         let key = VaultKey::generate();
@@ -308,14 +304,14 @@ impl ParaKeysApp {
                             .to_string()
                     }
                     WalletBackend::Keychain => {
-                        "Vault created. Unlock key is in the Keychain.".to_string()
+                        "Vault created. Unlock key stored in Keychain.".to_string()
                     }
                     WalletBackend::File => {
-                        "Vault created. Unlock key is in the local file wallet.".to_string()
+                        "Vault created. Unlock key stored in the local file wallet.".to_string()
                     }
                 };
                 for n in &outcome.notes {
-                    msg.push_str("\n");
+                    msg.push('\n');
                     msg.push_str(n);
                 }
                 self.status = msg;
@@ -334,44 +330,29 @@ impl ParaKeysApp {
             }
         };
         let env_path = root.join(".env");
-        let status = Command::new(
-            std::env::current_exe()
-                .ok()
-                .and_then(|p| {
-                    let mut cli = p;
-                    cli.set_file_name("parakeys");
-                    if cli.is_file() {
-                        Some(cli)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_else(|| PathBuf::from("parakeys")),
-        )
-        .args([
-            "import",
-            "--path",
-            &root.display().to_string(),
-            env_path.to_str().unwrap_or(".env"),
-        ])
-        .output();
-        match status {
-            Ok(out) if out.status.success() => {
-                self.status = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if self.status.is_empty() {
-                    self.status = "Imported secrets. Values stay off disk.".into();
-                }
+        let cli = sibling_cli();
+        let out = Command::new(cli)
+            .args([
+                "import",
+                "--path",
+                &root.display().to_string(),
+                env_path.to_str().unwrap_or(".env"),
+            ])
+            .output();
+        match out {
+            Ok(o) if o.status.success() => {
+                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                self.status = if s.is_empty() {
+                    "Imported. Values are no longer on disk.".into()
+                } else {
+                    s
+                };
                 self.refresh_keys();
             }
-            Ok(out) => {
-                self.status = format!(
-                    "Import failed: {}",
-                    String::from_utf8_lossy(&out.stderr).trim()
-                );
+            Ok(o) => {
+                self.status = format!("{}", String::from_utf8_lossy(&o.stderr).trim());
             }
-            Err(e) => {
-                self.status = format!("Could not run parakeys CLI: {e}");
-            }
+            Err(e) => self.status = format!("Could not run parakeys: {e}"),
         }
     }
 
@@ -385,371 +366,425 @@ impl ParaKeysApp {
         };
         let cmd = self.run_cmd.trim();
         if cmd.is_empty() {
-            self.status = "Enter a command to run with secrets injected.".into();
+            self.status = "Enter a command to run.".into();
             return;
         }
         let parts: Vec<&str> = cmd.split_whitespace().collect();
         let mut args = vec![
-            "run".to_string(),
-            "--path".to_string(),
+            "run".into(),
+            "--path".into(),
             root.display().to_string(),
-            "--".to_string(),
+            "--".into(),
         ];
-        args.extend(parts.iter().map(|s| s.to_string()));
-        let cli = std::env::current_exe()
-            .ok()
-            .and_then(|p| {
-                let mut c = p;
-                c.set_file_name("parakeys");
-                if c.is_file() {
-                    Some(c)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| PathBuf::from("parakeys"));
-        match Command::new(cli).args(&args).output() {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                self.status = if out.status.success() {
+        args.extend(parts.iter().map(|s| (*s).to_string()));
+        match Command::new(sibling_cli()).args(&args).output() {
+            Ok(o) => {
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                let stderr = String::from_utf8_lossy(&o.stderr);
+                self.status = if o.status.success() {
                     if stdout.trim().is_empty() {
-                        "Command finished.".into()
+                        "Done.".into()
                     } else {
-                        format!("{}", stdout.trim())
+                        stdout.trim().to_string()
                     }
+                } else if !stderr.trim().is_empty() {
+                    stderr.trim().to_string()
                 } else {
-                    format!("{}", stderr.trim().or_empty(&stdout))
+                    stdout.trim().to_string()
                 };
             }
-            Err(e) => self.status = format!("Could not run command: {e}"),
+            Err(e) => self.status = format!("Could not run: {e}"),
         }
     }
 }
 
-trait OrEmpty {
-    fn or_empty<'a>(&'a self, other: &'a str) -> &'a str;
-}
-impl OrEmpty for str {
-    fn or_empty<'a>(&'a self, other: &'a str) -> &'a str {
-        if self.is_empty() {
-            other
-        } else {
-            self
-        }
-    }
+fn sibling_cli() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| {
+            let mut c = p;
+            c.set_file_name("parakeys");
+            c.is_file().then_some(c)
+        })
+        .unwrap_or_else(|| PathBuf::from("parakeys"))
 }
 
 impl eframe::App for ParaKeysApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         apply_theme(ctx);
 
-        // ── Left rail ─────────────────────────────────────────────────────
-        egui::SidePanel::left("rail")
-            .exact_width(240.0)
+        // ── Sidebar (Passwords-style list chrome) ─────────────────────────
+        egui::SidePanel::left("side")
+            .exact_width(220.0)
             .resizable(false)
             .frame(
                 Frame::new()
                     .fill(Palette::BG_SIDE)
-                    .stroke(Stroke::new(1.0, Palette::STROKE))
-                    .inner_margin(Margin::same(20)),
+                    .inner_margin(Margin::symmetric(12, 12)),
             )
             .show(ctx, |ui| {
+                // Title row
                 ui.horizontal(|ui| {
-                    monogram(ui);
-                    ui.add_space(10.0);
-                    ui.vertical(|ui| {
-                        ui.label(
-                            RichText::new("ParaKeys")
-                                .size(17.0)
-                                .strong()
-                                .color(Palette::TEXT),
-                        );
-                        ui.label(
-                            RichText::new("project secrets")
-                                .size(11.0)
-                                .color(Palette::TEXT_MUTED),
-                        );
+                    ui.label(RichText::new("ParaKeys").size(15.0).strong().color(Palette::TEXT));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if link_btn(ui, "Open…").clicked() {
+                            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                                self.project_path = folder.display().to_string();
+                                self.refresh_keys();
+                            }
+                        }
                     });
                 });
-
-                ui.add_space(28.0);
                 ui.label(
-                    RichText::new("PROJECT")
-                        .size(10.0)
-                        .color(Palette::TEXT_MUTED)
-                        .strong(),
+                    RichText::new(self.short_path())
+                        .size(11.0)
+                        .color(Palette::TEXT_TERT),
                 );
-                ui.add_space(6.0);
 
+                ui.add_space(14.0);
+                section_label(ui, "Library");
+
+                // Selection row: All Keys
+                let selected = self.has_vault;
+                let fill = if selected {
+                    Palette::SELECT
+                } else {
+                    Color32::TRANSPARENT
+                };
                 Frame::new()
-                    .fill(Palette::BG_ELEVATED)
-                    .stroke(Stroke::new(1.0, Palette::STROKE))
-                    .corner_radius(CornerRadius::same(10))
-                    .inner_margin(Margin::same(12))
+                    .fill(fill)
+                    .corner_radius(CornerRadius::same(6))
+                    .inner_margin(Margin::symmetric(10, 8))
                     .show(ui, |ui| {
-                        ui.label(
-                            RichText::new(self.project_label())
-                                .size(14.0)
-                                .strong()
-                                .color(Palette::TEXT),
-                        );
-                        if !self.env_name.is_empty() {
-                            ui.label(
-                                RichText::new(format!("env · {}", self.env_name))
-                                    .size(11.0)
-                                    .color(Palette::SIGNAL),
-                            );
-                        }
-                        let wallet = if self.last_backend.is_empty() {
-                            "not unlocked"
-                        } else {
-                            &self.last_backend
-                        };
-                        ui.label(
-                            RichText::new(format!("wallet · {wallet}"))
-                                .size(11.0)
-                                .color(Palette::TEXT_MUTED),
-                        );
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("●").size(8.0).color(Palette::BLUE));
+                            ui.add_space(6.0);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new("All Keys")
+                                        .size(13.0)
+                                        .color(Palette::TEXT)
+                                        .strong(),
+                                );
+                                let sub = if !self.has_vault {
+                                    "No vault"
+                                } else if self.keys.is_empty() {
+                                    "Empty"
+                                } else {
+                                    // count only
+                                    ""
+                                };
+                                if sub.is_empty() {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} item{}",
+                                            self.keys.len(),
+                                            if self.keys.len() == 1 { "" } else { "s" }
+                                        ))
+                                        .size(11.0)
+                                        .color(Palette::TEXT_SEC),
+                                    );
+                                } else {
+                                    ui.label(
+                                        RichText::new(sub).size(11.0).color(Palette::TEXT_SEC),
+                                    );
+                                }
+                            });
+                        });
                     });
 
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    if secondary_button(ui, "Browse").clicked() {
-                        if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                            self.project_path = folder.display().to_string();
-                            self.refresh_keys();
-                        }
-                    }
-                    if ghost_button(ui, "Refresh").clicked() {
-                        self.refresh_keys();
-                    }
-                });
-
-                ui.add_space(8.0);
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.project_path)
-                        .hint_text("Project path")
-                        .desired_width(f32::INFINITY)
-                        .text_color(Palette::TEXT_DIM)
-                        .frame(true),
-                );
-
-                ui.add_space(24.0);
-                ui.label(
-                    RichText::new("ACTIONS")
-                        .size(10.0)
-                        .color(Palette::TEXT_MUTED)
-                        .strong(),
-                );
-                ui.add_space(8.0);
-
-                if primary_button(ui, "  Create vault  ").clicked() {
-                    self.do_init();
-                }
                 ui.add_space(6.0);
-                if secondary_button(ui, "  Import .env  ").clicked() {
-                    self.do_import();
-                }
+                Frame::new()
+                    .fill(Color32::TRANSPARENT)
+                    .corner_radius(CornerRadius::same(6))
+                    .inner_margin(Margin::symmetric(10, 8))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("○").size(8.0).color(Palette::TEXT_TERT));
+                            ui.add_space(6.0);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(self.project_title())
+                                        .size(13.0)
+                                        .color(Palette::TEXT_SEC),
+                                );
+                                let wallet = if self.last_backend.is_empty() {
+                                    if self.has_vault {
+                                        "locked"
+                                    } else {
+                                        "—"
+                                    }
+                                } else {
+                                    &self.last_backend
+                                };
+                                ui.label(
+                                    RichText::new(format!("Wallet · {wallet}"))
+                                        .size(11.0)
+                                        .color(Palette::TEXT_TERT),
+                                );
+                            });
+                        });
+                    });
 
                 ui.add_space(16.0);
-                let reveal_response = ui.checkbox(
+                section_label(ui, "Privacy");
+                let reveal_resp = ui.checkbox(
                     &mut self.reveal,
-                    RichText::new("Reveal secrets").size(13.0).color(Palette::TEXT_DIM),
+                    RichText::new("Show values").size(13.0).color(Palette::TEXT_SEC),
                 );
-                if reveal_response.changed() || self.reveal != self.prev_reveal {
+                if reveal_resp.changed() || self.reveal != self.prev_reveal {
                     self.prev_reveal = self.reveal;
                     self.refresh_keys();
                 }
 
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    ui.add_space(8.0);
-                    ui.label(
-                        RichText::new("Secrets stay off disk.\nStatus never dumps values.")
-                            .size(11.0)
-                            .color(Palette::TEXT_MUTED),
-                    );
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                     ui.add_space(4.0);
-                    ui.label(
-                        RichText::new("Like Apple Passwords,\nrefined for dotenv.")
-                            .size(11.0)
-                            .color(Palette::TEXT_MUTED)
-                            .italics(),
-                    );
+                    if !self.has_vault {
+                        if blue_btn(ui, "Create Vault").clicked() {
+                            self.do_init();
+                        }
+                        ui.add_space(6.0);
+                    } else {
+                        if gray_btn(ui, "Import .env").clicked() {
+                            self.do_import();
+                        }
+                        ui.add_space(6.0);
+                        if gray_btn(ui, "Refresh").clicked() {
+                            self.refresh_keys();
+                        }
+                    }
                 });
             });
 
-        // ── Main ──────────────────────────────────────────────────────────
+        // ── Main content ──────────────────────────────────────────────────
         egui::CentralPanel::default()
             .frame(
                 Frame::new()
                     .fill(Palette::BG)
-                    .inner_margin(Margin::symmetric(28, 24)),
+                    .inner_margin(Margin::symmetric(24, 20)),
             )
             .show(ctx, |ui| {
-                // Header
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
+                // Title: only when vault exists
+                if self.has_vault {
+                    ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new("Keys")
-                                .size(28.0)
+                            RichText::new("All Keys")
+                                .size(22.0)
                                 .strong()
                                 .color(Palette::TEXT),
                         );
-                        if !self.status.is_empty() {
+                        if !self.env_name.is_empty() {
+                            ui.add_space(8.0);
                             ui.label(
-                                RichText::new(&self.status)
+                                RichText::new(self.env_name.as_str())
                                     .size(13.0)
-                                    .color(Palette::TEXT_DIM),
+                                    .color(Palette::TEXT_SEC),
                             );
                         }
                     });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(format!("{}", self.key_count))
-                                .size(32.0)
-                                .color(Palette::SIGNAL)
-                                .strong(),
-                        );
-                    });
-                });
+                    ui.add_space(12.0);
 
-                ui.add_space(16.0);
+                    // Run only when vault is ready
+                    if self.has_unlock {
+                        Frame::new()
+                            .fill(Palette::BG_CARD)
+                            .stroke(Stroke::new(0.5, Palette::STROKE))
+                            .corner_radius(CornerRadius::same(8))
+                            .inner_margin(Margin::symmetric(10, 8))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new("Run with secrets")
+                                            .size(12.0)
+                                            .color(Palette::TEXT_TERT),
+                                    );
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut self.run_cmd)
+                                            .hint_text("e.g. npm start")
+                                            .desired_width(ui.available_width() - 72.0)
+                                            .font(FontId::proportional(13.0)),
+                                    );
+                                    if blue_btn(ui, "Run").clicked() {
+                                        self.do_run();
+                                    }
+                                });
+                            });
+                        ui.add_space(14.0);
+                    }
+                }
 
-                // Run bar
-                Frame::new()
-                    .fill(Palette::BG_ELEVATED)
-                    .stroke(Stroke::new(1.0, Palette::STROKE))
-                    .corner_radius(CornerRadius::same(12))
-                    .inner_margin(Margin::symmetric(14, 10))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new("Run")
-                                    .size(12.0)
-                                    .color(Palette::TEXT_MUTED)
-                                    .strong(),
-                            );
-                            ui.add_space(8.0);
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.run_cmd)
-                                    .hint_text("command · secrets inject into the child process")
-                                    .desired_width(ui.available_width() - 100.0)
-                                    .font(FontId::monospace(13.0)),
-                            );
-                            if primary_button(ui, "Run").clicked() {
-                                self.do_run();
-                            }
-                        });
-                    });
-
-                // Recovery banner
+                // Status / recovery
                 if !self.recovery_shown.is_empty() {
-                    ui.add_space(14.0);
                     Frame::new()
-                        .fill(Palette::RECOVERY_BG)
-                        .stroke(Stroke::new(1.0, Palette::RECOVERY_STROKE))
-                        .corner_radius(CornerRadius::same(12))
-                        .inner_margin(Margin::same(14))
+                        .fill(Color32::from_rgb(44, 34, 20))
+                        .stroke(Stroke::new(0.5, Palette::ORANGE.gamma_multiply(0.5)))
+                        .corner_radius(CornerRadius::same(8))
+                        .inner_margin(Margin::same(12))
                         .show(ui, |ui| {
                             ui.label(
-                                RichText::new("Recovery code · store offline · shown once")
-                                    .size(11.0)
-                                    .color(Palette::WARN)
-                                    .strong(),
+                                RichText::new("Save this recovery code")
+                                    .size(12.0)
+                                    .strong()
+                                    .color(Palette::ORANGE),
                             );
-                            ui.add_space(6.0);
+                            ui.add_space(4.0);
                             ui.label(
                                 RichText::new(&self.recovery_shown)
-                                    .size(14.0)
+                                    .size(13.0)
                                     .monospace()
                                     .color(Palette::TEXT),
                             );
+                            ui.add_space(2.0);
+                            ui.label(
+                                RichText::new("Store it offline. It will not be shown again.")
+                                    .size(11.0)
+                                    .color(Palette::TEXT_SEC),
+                            );
                         });
+                    ui.add_space(12.0);
                 }
 
-                ui.add_space(20.0);
+                if !self.status.is_empty() && self.has_vault {
+                    ui.label(RichText::new(&self.status).size(12.0).color(Palette::TEXT_SEC));
+                    ui.add_space(8.0);
+                }
 
-                // Key list
-                if self.keys.is_empty() {
+                // Empty / content
+                if !self.has_vault {
+                    // Full empty: hero CTA only (no Run bar, no orphan count)
                     ui.vertical_centered(|ui| {
-                        ui.add_space(48.0);
-                        monogram(ui);
+                        ui.add_space(ui.available_height() * 0.22);
+                        // Soft circle
+                        let (r, _) = ui.allocate_exact_size(Vec2::splat(56.0), Sense::hover());
+                        ui.painter()
+                            .circle_filled(r.center(), 28.0, Palette::BG_CARD);
+                        ui.painter().circle_stroke(
+                            r.center(),
+                            28.0,
+                            Stroke::new(1.0, Palette::STROKE),
+                        );
+                        ui.painter().text(
+                            r.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "key",
+                            FontId::proportional(14.0),
+                            Palette::TEXT_SEC,
+                        );
                         ui.add_space(16.0);
                         ui.label(
-                            RichText::new("Nothing here yet")
-                                .size(18.0)
-                                .color(Palette::TEXT)
-                                .strong(),
+                            RichText::new("No Vault")
+                                .size(20.0)
+                                .strong()
+                                .color(Palette::TEXT),
                         );
                         ui.add_space(6.0);
                         ui.label(
-                            RichText::new("Create a vault, then import a .env.\nValues never stay on disk as plaintext.")
+                            RichText::new("Create a vault for this project to store\nenvironment secrets securely.")
                                 .size(13.0)
-                                .color(Palette::TEXT_MUTED)
-                                .italics(),
+                                .color(Palette::TEXT_SEC),
+                        );
+                        ui.add_space(18.0);
+                        if blue_btn(ui, "  Create Vault  ").clicked() {
+                            self.do_init();
+                        }
+                        ui.add_space(8.0);
+                        if link_btn(ui, "Choose a different folder").clicked() {
+                            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                                self.project_path = folder.display().to_string();
+                                self.refresh_keys();
+                            }
+                        }
+                    });
+                } else if !self.has_unlock {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(80.0);
+                        ui.label(
+                            RichText::new("Vault Locked")
+                                .size(18.0)
+                                .strong()
+                                .color(Palette::TEXT),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Use recovery from the CLI:\nparakeys init --recover '<code>'")
+                                .size(13.0)
+                                .color(Palette::TEXT_SEC)
+                                .monospace(),
                         );
                     });
+                } else if self.keys.is_empty() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(60.0);
+                        ui.label(
+                            RichText::new("No Keys")
+                                .size(18.0)
+                                .strong()
+                                .color(Palette::TEXT),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Import a .env file to move secrets into the vault.")
+                                .size(13.0)
+                                .color(Palette::TEXT_SEC),
+                        );
+                        ui.add_space(16.0);
+                        if blue_btn(ui, "  Import .env  ").clicked() {
+                            self.do_import();
+                        }
+                    });
                 } else {
+                    // List
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            for (i, (name, st, _ks)) in self.keys.iter().enumerate() {
-                                let value_opt = self
-                                    .revealed
-                                    .iter()
-                                    .find(|(n, _)| n == name)
-                                    .map(|(_, v)| v.as_str());
+                            Frame::new()
+                                .fill(Palette::BG_CARD)
+                                .stroke(Stroke::new(0.5, Palette::STROKE))
+                                .corner_radius(CornerRadius::same(10))
+                                .show(ui, |ui| {
+                                    let n = self.keys.len();
+                                    for (i, (name, _st, ks)) in self.keys.iter().enumerate() {
+                                        let val = self
+                                            .revealed
+                                            .iter()
+                                            .find(|(k, _)| k == name)
+                                            .map(|(_, v)| v.clone());
 
-                                Frame::new()
-                                    .fill(if i % 2 == 0 {
-                                        Palette::BG_ROW
-                                    } else {
-                                        Palette::BG_ELEVATED
-                                    })
-                                    .stroke(Stroke::new(1.0, Palette::STROKE.gamma_multiply(0.6)))
-                                    .corner_radius(CornerRadius::same(10))
-                                    .inner_margin(Margin::symmetric(14, 11))
-                                    .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            // Accent bar
-                                            let (bar, _) = ui.allocate_exact_size(
-                                                Vec2::new(3.0, 28.0),
-                                                Sense::hover(),
-                                            );
-                                            ui.painter().rect_filled(
-                                                bar,
-                                                CornerRadius::same(2),
-                                                Palette::SIGNAL.gamma_multiply(0.85),
-                                            );
-                                            ui.add_space(10.0);
+                                            ui.add_space(12.0);
                                             ui.vertical(|ui| {
+                                                ui.add_space(10.0);
                                                 ui.label(
                                                     RichText::new(name)
                                                         .size(14.0)
-                                                        .monospace()
-                                                        .color(Palette::TEXT)
-                                                        .strong(),
+                                                        .color(Palette::TEXT),
                                                 );
                                                 if self.reveal {
-                                                    if let Some(v) = value_opt {
+                                                    if let Some(v) = val {
                                                         ui.label(
                                                             RichText::new(v)
                                                                 .size(12.0)
                                                                 .monospace()
-                                                                .color(Palette::SIGNAL),
+                                                                .color(Palette::BLUE),
                                                         );
                                                     } else {
-                                                        status_pill(ui, st);
+                                                        status_chip(ui, *ks);
                                                     }
                                                 } else {
-                                                    status_pill(ui, st);
+                                                    status_chip(ui, *ks);
                                                 }
+                                                ui.add_space(10.0);
                                             });
                                         });
-                                    });
-                                ui.add_space(6.0);
-                            }
+                                        if i + 1 < n {
+                                            ui.painter().hline(
+                                                ui.max_rect().x_range(),
+                                                ui.cursor().top(),
+                                                Stroke::new(0.5, Palette::DIVIDER),
+                                            );
+                                        }
+                                    }
+                                });
                         });
                 }
             });
